@@ -62,7 +62,7 @@ taskRouter.delete('/:id', validateRequestParams(z.object({ id: taskIdUrlParamSch
     const index = tasks.findIndex((task) => task.id === parseInt(req.params.id));
     if (index !== -1) {
         tasks.splice(index, 1);
-        res.status(204).send();
+        res.json(`Task ID ${req.params.id} deleted`);
     } else {
         res.status(404).send('Task not found');
     }
