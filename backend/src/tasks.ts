@@ -1,4 +1,5 @@
-import { Request, Response, Router, NextFunction } from "express";
+import { Request, Response, Router } from "express";
+import { validateRequest, validateRequestParams } from 'zod-express-middleware';
 import { z } from "zod";
 
 const taskSchema = z.object({
@@ -8,6 +9,10 @@ const taskSchema = z.object({
     completed: z.boolean().default(false),
 });
 
+const taskIdUrlParamSchema = z.string().refine((val) => !isNaN(parseInt(val)) && parseInt(val) > 0, {
+    message: "Task ID must be a positive number",
+})
+
 type Task = z.infer<typeof taskSchema> & { id: number };
 
 const tasks: Task[] = [
@@ -16,24 +21,6 @@ const tasks: Task[] = [
     { id: 3, name: "Task 3", completed: false },
 ];
 
-const newTaskSchema = z.object({
-    body: taskSchema,
-})
-
-const validate = (schema: z.AnyZodObject) => async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        console.log('validate')
-
-        await schema.parseAsync({
-            body: req.body,
-            query: req.query,
-            params: req.params,
-        })
-        next()
-    } catch (error) {
-        res.status(400).json(error)
-    }
-}
 
 export const taskRouter = Router();
 
@@ -41,8 +28,7 @@ taskRouter.get('/', (_req: Request, res: Response) => {
     res.json(tasks);
 });
 
-taskRouter.post('/new', validate(newTaskSchema), (req: Request, res: Response) => {
-    console.log('hit')
+taskRouter.post('/new', validateRequest({ body: taskSchema }), (req: Request, res: Response) => {
     const newTask = {
         id: tasks.length + 1,
         name: req.body.name,
@@ -52,13 +38,8 @@ taskRouter.post('/new', validate(newTaskSchema), (req: Request, res: Response) =
     res.status(201).json(newTask);
 });
 
-taskRouter.get('/:id', (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-        res.status(400).send('Task ID must be a number');
-        return;
-    }
-    const task = tasks.find((task) => task.id === id);
+taskRouter.get('/:id', validateRequestParams(z.object({ id: taskIdUrlParamSchema })), (req: Request, res: Response) => {
+    const task = tasks.find((task) => task.id === parseInt(req.params.id));
     if (task) {
         res.json(task);
     } else {
@@ -66,13 +47,8 @@ taskRouter.get('/:id', (req: Request, res: Response) => {
     }
 });
 
-taskRouter.put('/:id', (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-        res.status(400).send('Task ID must be a number');
-        return;
-    }
-    const task = tasks.find((task) => task.id === id);
+taskRouter.put('/:id', validateRequestParams(z.object({ id: taskIdUrlParamSchema })), (req: Request, res: Response) => {
+    const task = tasks.find((task) => task.id === parseInt(req.params.id));
     if (task) {
         task.name = req.body.name;
         task.completed = req.body.completed;
@@ -82,13 +58,8 @@ taskRouter.put('/:id', (req: Request, res: Response) => {
     }
 });
 
-taskRouter.delete('/:id', (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-        res.status(400).send('Task ID must be a number');
-        return;
-    }
-    const index = tasks.findIndex((task) => task.id === id);
+taskRouter.delete('/:id', validateRequestParams(z.object({ id: taskIdUrlParamSchema })), (req: Request, res: Response) => {
+    const index = tasks.findIndex((task) => task.id === parseInt(req.params.id));
     if (index !== -1) {
         tasks.splice(index, 1);
         res.status(204).send();
